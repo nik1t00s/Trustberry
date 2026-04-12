@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Система обнаружения мошеннических отзывов</title>
+    <style>
+        :root {
+            --bg: #f4f7fb;
+            --panel: #ffffff;
+            --panel-soft: #f8fbff;
+            --text: #172033;
+            --muted: #6b7280;
+            --line: #d8e1ee;
+            --accent: #1d4ed8;
+            --accent-2: #0f766e;
+            --success: #166534;
+            --success-bg: #dcfce7;
+            --warning: #b45309;
+            --warning-bg: #fef3c7;
+            --danger: #b91c1c;
+            --danger-bg: #fee2e2;
+            --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            color: var(--text);
+            font-family: "Segoe UI", Tahoma, sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 30%),
+                radial-gradient(circle at top right, rgba(15, 118, 110, 0.10), transparent 26%),
+                var(--bg);
+        }
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 28px 20px 40px;
+        }
+        .hero {
+            display: grid;
+            grid-template-columns: 1.6fr 1fr;
+            gap: 20px;
+            margin-bottom: 22px;
+        }
+        .hero-card, .model-card, .card {
+            background: var(--panel);
+            border: 1px solid rgba(216, 225, 238, 0.9);
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+        }
+        .hero-card {
+            padding: 28px;
+            background: linear-gradient(135deg, #ffffff 0%, #f4f9ff 55%, #e0f2fe 100%);
+        }
+        .hero-card h1 {
+            margin: 0 0 12px;
+            font-size: 34px;
+            line-height: 1.08;
+        }
+        .hero-card p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.6;
+            max-width: 680px;
+        }
+        .hero-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+        }
+        .hero-badge {
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.78);
+            border: 1px solid rgba(29, 78, 216, 0.15);
+            font-size: 13px;
+            color: #24417b;
+            font-weight: 600;
+        }
+        .model-card {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        }
+        .eyebrow {
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 14px;
+        }
+        .status-pill.ready {
+            color: var(--success);
+            background: var(--success-bg);
+        }
+        .status-pill.idle {
+            color: var(--danger);
+            background: var(--danger-bg);
+        }
+        .status-meta {
+            margin-top: 16px;
+            color: var(--muted);
+            line-height: 1.55;
+        }
+        .alert {
+            border-radius: 18px;
+            padding: 14px 16px;
+            margin-bottom: 18px;
+            font-weight: 600;
+            line-height: 1.5;
+            border: 1px solid transparent;
+        }
+        .alert.success {
+            background: var(--success-bg);
+            color: var(--success);
+            border-color: rgba(22, 101, 52, 0.16);
+        }
+        .alert.error {
+            background: var(--danger-bg);
+            color: var(--danger);
+            border-color: rgba(185, 28, 28, 0.16);
+        }
+        .alert.info {
+            background: #dbeafe;
+            color: #1d4ed8;
+            border-color: rgba(29, 78, 216, 0.15);
+        }
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 22px;
+        }
+        .card {
+            padding: 22px;
+        }
+        .section-head {
+            display: flex;
+            align-items: start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .section-head h2, .section-head h3, .card h3 {
+            margin: 0;
+        }
+        .section-subtitle {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .hint-box {
+            padding: 14px 16px;
+            border-radius: 18px;
+            background: linear-gradient(180deg, #edf5ff, #f8fbff);
+            border: 1px solid rgba(59, 130, 246, 0.16);
+            color: #24417b;
+            font-size: 14px;
+            line-height: 1.55;
+            margin-bottom: 16px;
+        }
+        .format-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .format-chip {
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(59, 130, 246, 0.15);
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .form-stack {
+            display: grid;
+            gap: 12px;
+        }
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+        input, textarea, button, select {
+            width: 100%;
+            font: inherit;
+            border-radius: 16px;
+        }
+        input, textarea, select {
+            border: 1px solid var(--line);
+            background: #fbfdff;
+            padding: 12px 14px;
+            color: var(--text);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: rgba(29, 78, 216, 0.45);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+        }
+        textarea {
+            resize: vertical;
+            min-height: 130px;
+        }
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+        .button-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        button {
+            border: none;
+            cursor: pointer;
+            padding: 13px 16px;
+            font-weight: 700;
+            color: white;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            box-shadow: 0 14px 24px rgba(37, 99, 235, 0.22);
+            transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+        }
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 16px 26px rgba(37, 99, 235, 0.26);
+        }
+        button.secondary {
+            background: linear-gradient(135deg, #0f766e, #0b5e59);
+            box-shadow: 0 14px 24px rgba(15, 118, 110, 0.20);
+        }
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 18px;
+        }
+        .metric-card {
+            background: var(--panel-soft);
+            border: 1px solid #e5edf7;
+            border-radius: 18px;
+            padding: 16px;
+        }
+        .metric-card span {
+            display: block;
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .metric-card strong {
+            font-size: 28px;
+            line-height: 1;
+        }
+        .result-card {
+            margin-top: 18px;
+            border-radius: 20px;
+            padding: 18px;
+            border: 1px solid #e6edf7;
+            background: linear-gradient(180deg, #f8fbff, #eff6ff);
+        }
+        .risk-line {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .risk-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+        .risk-chip.safe {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+        .risk-chip.warning {
+            background: var(--warning-bg);
+            color: var(--warning);
+        }
+        .risk-chip.danger {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
+        .risk-bar {
+            width: 100%;
+            height: 12px;
+            border-radius: 999px;
+            background: #dde7f3;
+            overflow: hidden;
+            margin: 12px 0 14px;
+        }
+        .risk-fill {
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #22c55e 0%, #f59e0b 52%, #ef4444 100%);
+        }
+        .result-main {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .probability-number {
+            font-size: 38px;
+            font-weight: 800;
+            line-height: 1;
+        }
+        .table-wrap {
+            overflow-x: auto;
+            margin-top: 22px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 780px;
+        }
+        th {
+            text-align: left;
+            color: var(--muted);
+            font-size: 12px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            font-weight: 800;
+            padding: 0 0 14px;
+        }
+        td {
+            padding: 16px 12px 16px 0;
+            border-top: 1px solid #ebf1f7;
+            vertical-align: top;
+            font-size: 14px;
+        }
+        .review-cell {
+            max-width: 520px;
+            line-height: 1.55;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            word-break: break-word;
+        }
+        .table-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #eef4ff;
+            color: #1d4ed8;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .table-pill.pred-1 {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        .table-pill.pred-0 {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .dash {
+            color: #9aa5b1;
+        }
+        .small {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        @media (max-width: 1100px) {
+            .hero, .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        @media (max-width: 760px) {
+            .container {
+                padding: 18px 14px 28px;
+            }
+            .hero-card h1 {
+                font-size: 28px;
+            }
+            .metric-grid, .input-grid, .button-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <section class="hero">
+        <div class="hero-card">
+            <div class="eyebrow">Dashboard</div>
+            <h1>Система обнаружения мошеннических отзывов</h1>
+            <p>
+                Веб-приложение для загрузки отзывов, обучения модели и ручной проверки риска мошенничества.
+            </p>
+            <div class="hero-badges">
+                <div class="hero-badge">FastAPI</div>
+                <div class="hero-badge">Jinja2 Dashboard</div>
+                <div class="hero-badge">Machine Learning</div>
+                <div class="hero-badge">SQLite History</div>
+            </div>
+        </div>
+
+        <aside class="model-card">
+            <div>
+                <div class="eyebrow">Статус модели</div>
+                <div class="status-pill {% if model_ready %}ready{% else %}idle{% endif %}">
+                    {% if model_ready %}Активна ранее обученная модель{% else %}Модель пока не обучена{% endif %}
+                </div>
+                <div class="status-meta">
+                    {% if dataset_name %}
+                    В текущей сессии загружен датасет: <strong>{{ dataset_name }}</strong>.
+                    {% else %}
+                    {% if model_ready %}
+                    В текущей сессии новый датасет не загружался.
+                    {% else %}
+                    Для начала работы загрузите датасет через интерфейс или запустите demo-обучение.
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            <p class="small">Подготовлено для последовательной загрузки разных датасетов отзывов.</p>
+        </aside>
+    </section>
+
+    {% if message %}
+    <div class="alert {{ message_type }}">{{ message }}</div>
+    {% endif %}
+
+    <section class="main-grid">
+        <div class="card">
+            <div class="section-head">
+                <div>
+                    <h2>Обучение модели</h2>
+                    <div class="section-subtitle">
+                        После загрузки датасет очищается, дополняется метками и используется для обучения.
+                    </div>
+                </div>
+            </div>
+
+            <div class="hint-box">
+                Поддерживаемые форматы:
+                <div class="format-list">
+                    <span class="format-chip">CSV</span>
+                    <span class="format-chip">JSON</span>
+                    <span class="format-chip">JSONL</span>
+                    <span class="format-chip">TXT as JSON Lines</span>
+                    <span class="format-chip">JSON.ZST</span>
+                </div>
+                <div style="margin-top: 10px;">
+                    Пустые отзывы удаляются автоматически, а <code>fake_label</code> создается при отсутствии.
+                </div>
+            </div>
+
+            <div class="button-row">
+                <form action="/upload-and-train" method="post" enctype="multipart/form-data" class="form-stack">
+                    <div>
+                        <label for="dataset">Файл датасета</label>
+                        <input id="dataset" type="file" name="dataset" required />
+                    </div>
+                    <button type="submit">Загрузить и обучить</button>
+                </form>
+
+                <form action="/train-demo" method="post" class="form-stack">
+                    <div class="hint-box" style="margin-bottom: 0;">
+                        Быстрый сценарий для демонстрации интерфейса и проверки модели на встроенном наборе.
+                    </div>
+                    <button class="secondary" type="submit">Запустить demo-обучение</button>
+                </form>
+            </div>
+
+            {% if metrics %}
+            <div class="section-head" style="margin-top: 18px;">
+                <div>
+                    <h3>Метрики модели</h3>
+                    <div class="section-subtitle">Сводка последнего обучения</div>
+                </div>
+            </div>
+            <div class="metric-grid">
+                <div class="metric-card"><span>Accuracy</span><strong>{{ metrics.accuracy }}</strong></div>
+                <div class="metric-card"><span>Precision</span><strong>{{ metrics.precision }}</strong></div>
+                <div class="metric-card"><span>Recall</span><strong>{{ metrics.recall }}</strong></div>
+                <div class="metric-card"><span>F1-score</span><strong>{{ metrics.f1 }}</strong></div>
+                <div class="metric-card"><span>Train size</span><strong>{{ metrics.train_size }}</strong></div>
+                <div class="metric-card"><span>Test size</span><strong>{{ metrics.test_size }}</strong></div>
+            </div>
+            <div class="metric-grid" style="grid-template-columns: repeat(2, 1fr); margin-top: 12px;">
+                <div class="metric-card">
+                    <span>Средняя вероятность мошенничества</span>
+                    <strong>{{ metrics.avg_probability_fake if metrics.avg_probability_fake is defined else "—" }}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Сохранено в БД</span>
+                    <strong>{{ metrics.stored_rows if metrics.stored_rows is defined else reviews_total }}</strong>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <div class="section-head">
+                <div>
+                    <h2>Анализ одного отзыва</h2>
+                    <div class="section-subtitle">
+                        Форма для ручной проверки пользовательского отзыва и ответа продавца.
+                    </div>
+                </div>
+            </div>
+
+            <form action="/predict-form" method="post" class="form-stack">
+                <div class="input-grid">
+                    <div>
+                        <label for="product_id">ID товара</label>
+                        <input id="product_id" type="number" name="product_id" placeholder="Например, 100034689" />
+                    </div>
+                    <div>
+                        <label for="rating">Оценка</label>
+                        <select id="rating" name="rating">
+                            <option value="">Выберите</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="color">Цвет <span class="small">(необязательно)</span></label>
+                        <input id="color" type="text" name="color" placeholder="белый" />
+                    </div>
+                </div>
+
+                <div>
+                    <label for="review_text">Текст отзыва</label>
+                    <textarea id="review_text" name="review_text" placeholder="Введите текст отзыва..." required></textarea>
+                </div>
+
+                <div>
+                    <label for="seller_answer">Ответ продавца</label>
+                    <textarea id="seller_answer" name="seller_answer" placeholder="Введите ответ продавца, если он есть"></textarea>
+                </div>
+
+                <button type="submit">Проанализировать отзыв</button>
+            </form>
+
+            {% if result %}
+            <div class="result-card">
+                <div class="risk-line">
+                    <h3 style="margin: 0;">Результат анализа</h3>
+                    <span class="risk-chip {{ result.tone }}">{{ result.level }}</span>
+                </div>
+                <div class="result-main">
+                    <div>
+                        <div class="small">Класс</div>
+                        <div style="font-size: 22px; font-weight: 800;">{{ result.label }}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div class="small">Вероятность риска</div>
+                        <div class="probability-number">{{ "%.1f"|format(result.probability_fake * 100) }}%</div>
+                    </div>
+                </div>
+                <div class="risk-bar">
+                    <div class="risk-fill" style="width: {{ result.probability_fake * 100 }}%;"></div>
+                </div>
+                <div class="small">
+                    Чем ближе значение к 100%, тем выше риск того, что отзыв является подозрительным.
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="card" style="margin-top: 22px;">
+        <div class="section-head">
+            <div>
+                <h2>Последние записи</h2>
+                <div class="section-subtitle">
+                    Сюда попадают загруженные отзывы и результаты ручного анализа после обработки датасета.
+                </div>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Отзыв</th>
+                    <th>Оценка</th>
+                    <th>Вероятность</th>
+                    <th>Предсказание</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in recent %}
+                <tr>
+                    <td>{{ row.id }}</td>
+                    <td class="review-cell" title="{{ row.review_text }}">{{ row.review_text }}</td>
+                    <td>{{ row.rating if row.rating is not none else "—" }}</td>
+                    <td>
+                        {% if row.probability_fake is not none %}
+                        {{ "%.4f"|format(row.probability_fake) }}
+                        {% else %}
+                        <span class="dash">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.predicted_label is none %}
+                        <span class="dash">—</span>
+                        {% else %}
+                        <span class="table-pill pred-{{ row.predicted_label }}">
+                            {% if row.predicted_label == 1 %}Подозрительный{% else %}Легитимный{% endif %}
+                        </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+</body>
+</html>
