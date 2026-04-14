@@ -14,6 +14,8 @@ class PredictionOut(BaseModel):
     prediction: int
     label: str
     probability_fake: float
+    model_version: str | None = None
+    model_type: str | None = None
 
 
 class TrainResponse(BaseModel):

@@ -1,0 +1,21 @@
+{
+  "session_id": "label_900fdb624b8046efbff88cba7ddfd67d",
+  "source_name": "sample_reviews.json",
+  "created_at": "2026-04-13T23:33:22.013516+00:00",
+  "updated_at": "2026-04-13T23:33:22.014810+00:00",
+  "total": 3,
+  "labeled_count": 1,
+  "skipped_count": 0,
+  "current_index": 0,
+  "decisions": {
+    "generated_0_d122043156ef": "1"
+  },
+  "validation": {
+    "total_input": 3,
+    "valid_records": 3,
+    "filtered_empty_text": 0,
+    "deduplicated_by": "_reviewmark_id",
+    "duplicate_count": 0,
+    "duplicate_ids": []
+  }
+}

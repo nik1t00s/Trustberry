@@ -1,37 +1,213 @@
 {
-  "accuracy": 1.0,
-  "precision": 1.0,
-  "recall": 1.0,
-  "f1": 1.0,
-  "classification_report": {
-    "0": {
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 4.0
+  "summary": {
+    "model_type": "xgboost",
+    "model_label": "XGBoost",
+    "model_version": "review_model_xgboost_20260414_031045",
+    "trained_at": "2026-04-14T03:10:45",
+    "source_file": "labeled_records.jsonl",
+    "tuned": false,
+    "accuracy": 0.8132,
+    "precision": 0.325,
+    "recall": 0.4509,
+    "f1": 0.3777,
+    "roc_auc": 0.7432,
+    "confusion_matrix": [
+      [
+        1041,
+        162
+      ],
+      [
+        95,
+        78
+      ]
+    ],
+    "classification_report": {
+      "0": {
+        "precision": 0.9163732394366197,
+        "recall": 0.8653366583541147,
+        "f1-score": 0.8901239846088072,
+        "support": 1203.0
+      },
+      "1": {
+        "precision": 0.325,
+        "recall": 0.4508670520231214,
+        "f1-score": 0.37772397094430993,
+        "support": 173.0
+      },
+      "accuracy": 0.8132267441860465,
+      "macro avg": {
+        "precision": 0.6206866197183099,
+        "recall": 0.658101855188618,
+        "f1-score": 0.6339239777765585,
+        "support": 1376.0
+      },
+      "weighted avg": {
+        "precision": 0.8420218074434982,
+        "recall": 0.8132267441860465,
+        "f1-score": 0.8257015991698842,
+        "support": 1376.0
+      }
     },
-    "1": {
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 4.0
-    },
-    "accuracy": 1.0,
-    "macro avg": {
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 8.0
-    },
-    "weighted avg": {
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 8.0
+    "avg_probability_fake": 0.245,
+    "total_records": 5503,
+    "train_size": 4127,
+    "test_size": 1376,
+    "positive_rate": 0.1254,
+    "class_balance": {
+      "label_0": 4813,
+      "label_1": 690
     }
   },
-  "train_size": 22,
-  "test_size": 8,
-  "positive_rate_test": 0.5,
-  "avg_probability_fake": 0.4203
+  "models": {
+    "logistic_regression": {
+      "model_type": "logistic_regression",
+      "model_label": "Logistic Regression",
+      "model_version": "review_model_logreg_20260414_031036",
+      "trained_at": "2026-04-14T03:10:36",
+      "source_file": "labeled_records.jsonl",
+      "tuned": false,
+      "accuracy": 0.7733,
+      "precision": 0.2848,
+      "recall": 0.5318,
+      "f1": 0.371,
+      "roc_auc": 0.7607,
+      "confusion_matrix": [
+        [
+          972,
+          231
+        ],
+        [
+          81,
+          92
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.9230769230769231,
+          "recall": 0.8079800498753117,
+          "f1-score": 0.8617021276595744,
+          "support": 1203.0
+        },
+        "1": {
+          "precision": 0.2848297213622291,
+          "recall": 0.5317919075144508,
+          "f1-score": 0.3709677419354839,
+          "support": 173.0
+        },
+        "accuracy": 0.7732558139534884,
+        "macro avg": {
+          "precision": 0.6039533222195761,
+          "recall": 0.6698859786948812,
+          "f1-score": 0.6163349347975291,
+          "support": 1376.0
+        },
+        "weighted avg": {
+          "precision": 0.8428321804194798,
+          "recall": 0.7732558139534884,
+          "f1-score": 0.800003691082345,
+          "support": 1376.0
+        }
+      },
+      "avg_probability_fake": 0.3164,
+      "total_records": 5503,
+      "train_size": 4127,
+      "test_size": 1376,
+      "positive_rate": 0.1254,
+      "class_balance": {
+        "label_0": 4813,
+        "label_1": 690
+      }
+    },
+    "xgboost": {
+      "model_type": "xgboost",
+      "model_label": "XGBoost",
+      "model_version": "review_model_xgboost_20260414_031045",
+      "trained_at": "2026-04-14T03:10:45",
+      "source_file": "labeled_records.jsonl",
+      "tuned": false,
+      "accuracy": 0.8132,
+      "precision": 0.325,
+      "recall": 0.4509,
+      "f1": 0.3777,
+      "roc_auc": 0.7432,
+      "confusion_matrix": [
+        [
+          1041,
+          162
+        ],
+        [
+          95,
+          78
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.9163732394366197,
+          "recall": 0.8653366583541147,
+          "f1-score": 0.8901239846088072,
+          "support": 1203.0
+        },
+        "1": {
+          "precision": 0.325,
+          "recall": 0.4508670520231214,
+          "f1-score": 0.37772397094430993,
+          "support": 173.0
+        },
+        "accuracy": 0.8132267441860465,
+        "macro avg": {
+          "precision": 0.6206866197183099,
+          "recall": 0.658101855188618,
+          "f1-score": 0.6339239777765585,
+          "support": 1376.0
+        },
+        "weighted avg": {
+          "precision": 0.8420218074434982,
+          "recall": 0.8132267441860465,
+          "f1-score": 0.8257015991698842,
+          "support": 1376.0
+        }
+      },
+      "avg_probability_fake": 0.245,
+      "total_records": 5503,
+      "train_size": 4127,
+      "test_size": 1376,
+      "positive_rate": 0.1254,
+      "class_balance": {
+        "label_0": 4813,
+        "label_1": 690
+      }
+    }
+  },
+  "comparison": {
+    "comparison_metrics": [
+      {
+        "model_type": "logistic_regression",
+        "model_label": "Logistic Regression",
+        "accuracy": 0.7733,
+        "precision": 0.2848,
+        "recall": 0.5318,
+        "f1": 0.371,
+        "roc_auc": 0.7607
+      },
+      {
+        "model_type": "xgboost",
+        "model_label": "XGBoost",
+        "accuracy": 0.8132,
+        "precision": 0.325,
+        "recall": 0.4509,
+        "f1": 0.3777,
+        "roc_auc": 0.7432
+      }
+    ],
+    "winner_model_type": "xgboost",
+    "winner_model_label": "XGBoost",
+    "criterion_used": "f1_then_roc_auc",
+    "unavailable_models": {}
+  },
+  "active_model": {
+    "model_type": "xgboost",
+    "model_version": "review_model_xgboost_20260414_031045",
+    "trained_at": "2026-04-14T03:10:45",
+    "source_file": "labeled_records.jsonl"
+  }
 }

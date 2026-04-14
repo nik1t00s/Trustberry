@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -11,15 +12,18 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .db import count_reviews, fetch_recent, init_db, insert_reviews
-from .ml import METRICS_PATH, load_dataset, load_model, predict_one, train_model
+from .dataio import load_records
+from .labeling import apply_decision, create_session, get_next_record, get_progress, list_sessions, load_session, load_source_records
+from .ml import METRICS_PATH, get_available_model_options, get_model_type, get_model_version, load_model, predict_one
 from .schemas import PredictionOut, ReviewIn, TrainResponse
+from .services import predict_from_path, train_from_path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 UPLOADS_DIR = DATA_DIR / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-SUPPORTED_EXTENSIONS = {".csv", ".json", ".jsonl", ".jl", ".txt"}
+SUPPORTED_EXTENSIONS = {".json", ".jsonl", ".jl", ".txt"}
 
 app = FastAPI(title="Система обнаружения мошеннических отзывов", version="1.1.0")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="static")
@@ -48,6 +52,8 @@ def render_index(
     dataset_name: str | None = None,
 ) -> HTMLResponse:
     saved_metrics = load_saved_metrics()
+    saved_summary = (saved_metrics or {}).get("summary", saved_metrics)
+    active_model = (saved_metrics or {}).get("active_model", {})
     session_loaded = dataset_name is not None
     return templates.TemplateResponse(
         request=request,
@@ -56,13 +62,14 @@ def render_index(
             "request": request,
             "recent": fetch_recent(20),
             "result": result,
-            "metrics": metrics if metrics is not None else saved_metrics,
+            "metrics": metrics if metrics is not None else saved_summary,
             "message": message,
             "message_type": message_type,
             "dataset_name": dataset_name,
             "model_ready": saved_metrics is not None,
             "session_loaded": session_loaded,
             "reviews_total": count_reviews(),
+            "active_model": active_model,
         },
     )
 
@@ -75,19 +82,263 @@ def build_risk_badge(probability: float) -> dict[str, str]:
     return {"level": "Низкий риск", "tone": "safe"}
 
 
-def train_and_store(dataset_path: Path) -> tuple[dict[str, Any], int]:
-    df = load_dataset(dataset_path)
-    _, metrics = train_model(df)
-    rows = df.to_dict(orient="records")
-    insert_reviews(
-        [{**row, "probability_fake": None, "predicted_label": None} for row in rows]
+def render_training_page(
+    request: Request,
+    *,
+    metrics: dict[str, Any] | None = None,
+    summary: dict[str, Any] | None = None,
+    warnings: list[str] | None = None,
+    comparison: dict[str, Any] | None = None,
+    message: str | None = None,
+    message_type: str = "info",
+    dataset_name: str | None = None,
+) -> HTMLResponse:
+    saved_metrics = load_saved_metrics()
+    saved_summary = (saved_metrics or {}).get("summary", saved_metrics)
+    return templates.TemplateResponse(
+        request=request,
+        name="training.html",
+        context={
+            "request": request,
+            "metrics": metrics if metrics is not None else saved_summary,
+            "message": message,
+            "message_type": message_type,
+            "dataset_name": dataset_name,
+            "model_ready": saved_metrics is not None,
+            "summary": summary or {},
+            "warnings": warnings or [],
+            "comparison": comparison if comparison is not None else (saved_metrics or {}).get("comparison"),
+            "model_options": get_available_model_options(),
+        },
     )
-    return metrics, len(rows)
+
+
+def render_prediction_page(
+    request: Request,
+    *,
+    rows: list[dict[str, Any]] | None = None,
+    exports: dict[str, str] | None = None,
+    summary: dict[str, Any] | None = None,
+    message: str | None = None,
+    message_type: str = "info",
+    dataset_name: str | None = None,
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request=request,
+        name="prediction.html",
+        context={
+            "request": request,
+            "rows": rows or [],
+            "exports": exports or {},
+            "message": message,
+            "message_type": message_type,
+            "dataset_name": dataset_name,
+            "model_ready": load_saved_metrics() is not None,
+            "summary": summary or {},
+        },
+    )
+
+
+def render_labeling_page(
+    request: Request,
+    *,
+    session_id: str | None = None,
+    message: str | None = None,
+    message_type: str = "info",
+) -> HTMLResponse:
+    sessions = list_sessions()
+    session = load_session(session_id) if session_id else (sessions[0] if sessions else None)
+    current_record = None
+    progress = None
+
+    if session:
+        records = load_source_records(session["session_id"])
+        current_record = get_next_record(session, records)
+        progress = get_progress(session)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="labeling.html",
+        context={
+            "request": request,
+            "sessions": sessions,
+            "session": session,
+            "current_record": current_record,
+            "progress": progress,
+            "message": message,
+            "message_type": message_type,
+        },
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request) -> HTMLResponse:
     return render_index(request)
+
+
+@app.get("/labeling", response_class=HTMLResponse)
+def labeling_page(request: Request, session_id: str | None = None) -> HTMLResponse:
+    return render_labeling_page(request, session_id=session_id)
+
+
+@app.post("/labeling/start", response_class=HTMLResponse)
+def start_labeling_session(request: Request, dataset: UploadFile = File(...)) -> HTMLResponse:
+    if not dataset.filename:
+        return render_labeling_page(
+            request,
+            message="Выберите JSONL-файл для ручной разметки.",
+            message_type="error",
+        )
+
+    dst = UPLOADS_DIR / dataset.filename
+    with dst.open("wb") as buffer:
+        shutil.copyfileobj(dataset.file, buffer)
+
+    try:
+        session = create_session(load_records(dst), dataset.filename)
+    except Exception as exc:
+        return render_labeling_page(
+            request,
+            message=f"Не удалось открыть файл для разметки: {exc}",
+            message_type="error",
+        )
+
+    return render_labeling_page(
+        request,
+        session_id=session["session_id"],
+        message="Сессия разметки создана. Автосохранение включено.",
+        message_type="success",
+    )
+
+
+@app.post("/labeling/action", response_class=HTMLResponse)
+def labeling_action(
+    request: Request,
+    session_id: str = Form(...),
+    record_id: str = Form(...),
+    decision: str = Form(...),
+) -> HTMLResponse:
+    try:
+        apply_decision(session_id, record_id, decision)
+    except Exception as exc:
+        return render_labeling_page(
+            request,
+            session_id=session_id,
+            message=f"Не удалось сохранить разметку: {exc}",
+            message_type="error",
+        )
+
+    message = (
+        "Отзыв помечен как мошеннический."
+        if decision == "1"
+        else "Отзыв помечен как не мошеннический."
+        if decision == "0"
+        else "Отзыв пропущен."
+    )
+    return render_labeling_page(
+        request,
+        session_id=session_id,
+        message=message,
+        message_type="success" if decision != "skip" else "info",
+    )
+
+
+@app.get("/training", response_class=HTMLResponse)
+def training_page(request: Request) -> HTMLResponse:
+    return render_training_page(request)
+
+
+@app.post("/training/upload", response_class=HTMLResponse)
+def training_upload(
+    request: Request,
+    dataset: UploadFile = File(...),
+    training_mode: str = Form(default="single"),
+    selected_model: str = Form(default="logistic_regression"),
+    training_speed: str = Form(default="fast"),
+) -> HTMLResponse:
+    if not dataset.filename:
+        return render_training_page(
+            request,
+            message="Выберите файл с размеченными отзывами.",
+            message_type="error",
+        )
+
+    dst = UPLOADS_DIR / dataset.filename
+    with dst.open("wb") as buffer:
+        shutil.copyfileobj(dataset.file, buffer)
+
+    try:
+        training_result = train_from_path(
+            dst,
+            mode="compare" if training_mode == "compare" else "single",
+            model_type=selected_model,
+            training_speed=training_speed,
+        )
+    except Exception as exc:
+        return render_training_page(
+            request,
+            message=f"Не удалось обучить модель: {exc}",
+            message_type="error",
+            dataset_name=dataset.filename,
+        )
+
+    return render_training_page(
+        request,
+        metrics=training_result["metrics"],
+        summary={**training_result["validation"], **training_result["dataset_summary"]},
+        warnings=training_result["warnings"],
+        comparison=training_result["metrics_payload"].get("comparison"),
+        message=(
+            f"Обучение завершено на файле {dataset.filename}. "
+            f"Использовано {training_result['dataset_summary']['records_after_validation']} размеченных записей."
+        ),
+        message_type="success",
+        dataset_name=dataset.filename,
+    )
+
+
+@app.get("/prediction", response_class=HTMLResponse)
+def prediction_page(request: Request) -> HTMLResponse:
+    return render_prediction_page(request)
+
+
+@app.post("/prediction/upload", response_class=HTMLResponse)
+def prediction_upload(request: Request, dataset: UploadFile = File(...)) -> HTMLResponse:
+    if not dataset.filename:
+        return render_prediction_page(
+            request,
+            message="Выберите файл с новыми отзывами для прогнозирования.",
+            message_type="error",
+        )
+
+    dst = UPLOADS_DIR / dataset.filename
+    with dst.open("wb") as buffer:
+        shutil.copyfileobj(dataset.file, buffer)
+
+    try:
+        prediction_result = predict_from_path(dst)
+    except Exception as exc:
+        return render_prediction_page(
+            request,
+            message=f"Не удалось выполнить прогноз: {exc}",
+            message_type="error",
+            dataset_name=dataset.filename,
+        )
+
+    predictions = prediction_result["rows"]
+    flagged = sum(1 for row in predictions if row["predicted_label"] == 1)
+    return render_prediction_page(
+        request,
+        rows=sorted(predictions[:200], key=lambda row: row["predicted_proba"], reverse=True),
+        exports=prediction_result["exports"],
+        summary=prediction_result["validation"],
+        message=(
+            f"Прогноз завершен. Обработано {len(predictions)} записей, "
+            f"подозрительных отзывов: {flagged}."
+        ),
+        message_type="success",
+        dataset_name=dataset.filename,
+    )
 
 
 @app.post("/predict", response_model=PredictionOut)
@@ -157,27 +408,27 @@ def predict_form(
 
 @app.post("/train", response_model=TrainResponse)
 def train_from_sample() -> TrainResponse:
-    sample_path = DATA_DIR / "sample_reviews.json"
-    metrics, row_count = train_and_store(sample_path)
+    sample_path = DATA_DIR / "labeled_records.jsonl"
+    training_result = train_from_path(sample_path, mode="compare", training_speed="fast")
+    metrics = training_result["metrics"]
     return TrainResponse(
         message="Модель успешно обучена на демонстрационном наборе",
         train_size=metrics["train_size"],
         test_size=metrics["test_size"],
         metrics={
             **{k: v for k, v in metrics.items() if k not in {"classification_report"}},
-            "stored_rows": row_count,
         },
     )
 
 
 @app.post("/train-demo", response_class=HTMLResponse)
 def train_demo_form(request: Request) -> HTMLResponse:
-    sample_path = DATA_DIR / "sample_reviews.json"
-    metrics, row_count = train_and_store(sample_path)
+    sample_path = DATA_DIR / "labeled_records.jsonl"
+    training_result = train_from_path(sample_path, mode="compare", training_speed="fast")
     return render_index(
         request,
-        metrics={**metrics, "stored_rows": row_count},
-        message="Демонстрационный набор успешно загружен, модель обучена.",
+        metrics=training_result["metrics"],
+        message="Демонстрационный размеченный набор успешно загружен, модель обучена.",
         message_type="success",
         dataset_name=sample_path.name,
     )
@@ -200,7 +451,7 @@ def upload_and_train(request: Request, dataset: UploadFile = File(...)) -> HTMLR
     if not is_supported:
         return render_index(
             request,
-            message="Поддерживаются файлы CSV, JSON, JSONL, TXT(JSON Lines) и JSON.ZST.",
+            message="Поддерживаются файлы JSON, JSONL, TXT(JSON Lines) и JSON.ZST.",
             message_type="error",
         )
 
@@ -209,7 +460,7 @@ def upload_and_train(request: Request, dataset: UploadFile = File(...)) -> HTMLR
         shutil.copyfileobj(dataset.file, buffer)
 
     try:
-        metrics, row_count = train_and_store(dst)
+        training_result = train_from_path(dst, mode="compare", training_speed="fast")
     except Exception as exc:
         return render_index(
             request,
@@ -220,8 +471,11 @@ def upload_and_train(request: Request, dataset: UploadFile = File(...)) -> HTMLR
 
     return render_index(
         request,
-        metrics={**metrics, "stored_rows": row_count},
-        message=f"Датасет загружен, очищен и использован для обучения модели. В БД сохранено записей: {row_count}.",
+        metrics=training_result["metrics"],
+        message=(
+            f"Датасет загружен и использован для обучения модели. "
+            f"Принято размеченных записей: {training_result['dataset_summary']['records_after_validation']}."
+        ),
         message_type="success",
         dataset_name=dataset.filename,
     )
@@ -229,7 +483,7 @@ def upload_and_train(request: Request, dataset: UploadFile = File(...)) -> HTMLR
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "model_version": get_model_version(), "model_type": get_model_type()}
 
 
 @app.get("/reviews")

@@ -71,6 +71,21 @@
             gap: 10px;
             margin-top: 18px;
         }
+        .hero-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+        }
+        .hero-link {
+            text-decoration: none;
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.92);
+            color: #24417b;
+            border: 1px solid rgba(29, 78, 216, 0.15);
+            font-weight: 700;
+        }
         .hero-badge {
             padding: 8px 12px;
             border-radius: 999px;
@@ -415,13 +430,18 @@
             <div class="eyebrow">Dashboard</div>
             <h1>Система обнаружения мошеннических отзывов</h1>
             <p>
-                Веб-приложение для загрузки отзывов, обучения модели и ручной проверки риска мошенничества.
+                Веб-приложение с тремя режимами: ручная разметка, обучение модели на размеченных данных и прогнозирование новых отзывов.
             </p>
             <div class="hero-badges">
                 <div class="hero-badge">FastAPI</div>
                 <div class="hero-badge">Jinja2 Dashboard</div>
                 <div class="hero-badge">Machine Learning</div>
                 <div class="hero-badge">SQLite History</div>
+            </div>
+            <div class="hero-links">
+                <a class="hero-link" href="/labeling">Ручная разметка</a>
+                <a class="hero-link" href="/training">Обучение модели</a>
+                <a class="hero-link" href="/prediction">Пакетный прогноз</a>
             </div>
         </div>
 
@@ -442,6 +462,12 @@
                     {% endif %}
                     {% endif %}
                 </div>
+                {% if active_model.model_type %}
+                <div class="status-meta">
+                    Активная модель: <strong>{{ active_model.model_type }}</strong><br />
+                    Версия: <strong>{{ active_model.model_version }}</strong>
+                </div>
+                {% endif %}
             </div>
             <p class="small">Подготовлено для последовательной загрузки разных датасетов отзывов.</p>
         </aside>
@@ -457,7 +483,7 @@
                 <div>
                     <h2>Обучение модели</h2>
                     <div class="section-subtitle">
-                        После загрузки датасет очищается, дополняется метками и используется для обучения.
+                        Для обучения используется только файл, в котором уже присутствует корректный <code>fake_label</code>.
                     </div>
                 </div>
             </div>
@@ -465,14 +491,13 @@
             <div class="hint-box">
                 Поддерживаемые форматы:
                 <div class="format-list">
-                    <span class="format-chip">CSV</span>
                     <span class="format-chip">JSON</span>
                     <span class="format-chip">JSONL</span>
                     <span class="format-chip">TXT as JSON Lines</span>
                     <span class="format-chip">JSON.ZST</span>
                 </div>
                 <div style="margin-top: 10px;">
-                    Пустые отзывы удаляются автоматически, а <code>fake_label</code> создается при отсутствии.
+                    Для обучения подходят только заранее размеченные записи. Неразмеченные отзывы сначала нужно обработать в режиме ручной разметки.
                 </div>
             </div>
 
@@ -517,6 +542,10 @@
                     <span>Сохранено в БД</span>
                     <strong>{{ metrics.stored_rows if metrics.stored_rows is defined else reviews_total }}</strong>
                 </div>
+            </div>
+            <div class="small" style="margin-top: 12px;">
+                Активная модель: <strong>{{ metrics.model_label or metrics.model_type }}</strong>.
+                Версия: <code>{{ metrics.model_version }}</code>.
             </div>
             {% endif %}
         </div>

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Пакетное прогнозирование</title>
+    <style>
+        body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #f4f7fb; color: #172033; }
+        .container { max-width: 1240px; margin: 0 auto; padding: 24px 18px 36px; }
+        .nav { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+        .nav a { text-decoration: none; padding: 10px 14px; border-radius: 999px; background: #fff; color: #24417b; border: 1px solid #d7e1ee; font-weight: 600; }
+        .hero, .card { background: #fff; border-radius: 22px; box-shadow: 0 18px 45px rgba(15,23,42,.08); border: 1px solid #d8e1ee; }
+        .hero { padding: 24px; margin-bottom: 18px; }
+        .card { padding: 22px; }
+        .alert { border-radius: 16px; padding: 14px 16px; margin-bottom: 16px; font-weight: 600; }
+        .alert.success { background: #dcfce7; color: #166534; }
+        .alert.error { background: #fee2e2; color: #b91c1c; }
+        .alert.info { background: #dbeafe; color: #1d4ed8; }
+        input, button { width: 100%; font: inherit; border-radius: 16px; }
+        input { padding: 12px 14px; border: 1px solid #d8e1ee; background: #fbfdff; }
+        button { padding: 13px 16px; border: none; cursor: pointer; color: white; font-weight: 700; background: linear-gradient(135deg,#2563eb,#1d4ed8); margin-top: 12px; }
+        .small { color: #6b7280; font-size: 13px; line-height: 1.55; }
+        .grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 18px; }
+        .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+        .filters button { width: auto; margin-top: 0; padding: 8px 12px; font-size: 13px; }
+        table { width: 100%; border-collapse: collapse; min-width: 780px; }
+        th, td { padding: 12px 10px 12px 0; border-top: 1px solid #ebf1f7; vertical-align: top; text-align: left; }
+        th { color: #6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+        .table-wrap { overflow-x: auto; }
+        .pill { display: inline-block; padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+        .pill.ok { background: #dcfce7; color: #166534; }
+        .pill.bad { background: #fee2e2; color: #b91c1c; }
+        .review-cell { max-width: 520px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="nav">
+        <a href="/">Обзор</a>
+        <a href="/labeling">Ручная разметка</a>
+        <a href="/training">Обучение</a>
+        <a href="/prediction">Прогнозирование</a>
+    </div>
+
+    <section class="hero">
+        <h1 style="margin: 0 0 10px;">Пакетное прогнозирование</h1>
+        <div class="small">
+            Загрузите новый JSONL/JSON/JSON.ZST-файл без меток. Система использует сохраненную модель,
+            рассчитает <code>predicted_label</code> и <code>predicted_proba</code>, добавит <code>model_version</code> и <code>processed_at</code>,
+            покажет таблицу и сохранит результаты в JSONL и CSV.
+        </div>
+    </section>
+
+    {% if message %}
+    <div class="alert {{ message_type }}">{{ message }}</div>
+    {% endif %}
+
+    <div class="grid">
+        <section class="card">
+            <h2 style="margin-top: 0;">Файл для прогноза</h2>
+            <form action="/prediction/upload" method="post" enctype="multipart/form-data">
+                <input type="file" name="dataset" required />
+                <button type="submit">Запустить прогнозирование</button>
+            </form>
+            {% if dataset_name %}
+            <p class="small">Текущий файл: <strong>{{ dataset_name }}</strong></p>
+            {% endif %}
+            {% if exports %}
+            <p class="small">JSONL: {{ exports.jsonl }}</p>
+            <p class="small">CSV: {{ exports.csv }}</p>
+            {% endif %}
+        </section>
+
+        <section class="card">
+            <h2 style="margin-top: 0;">Статус модели</h2>
+            <p class="small">
+                {% if model_ready %}Модель найдена и готова к пакетному прогнозированию.{% else %}Сначала обучите модель в режиме обучения.{% endif %}
+            </p>
+        </section>
+    </div>
+
+    {% if summary %}
+    <section class="card" style="margin-top: 18px;">
+        <h2 style="margin-top: 0;">Сводка загрузки</h2>
+        <p class="small">
+            Принято записей: {{ summary.valid_records }}. Пустой <code>text</code> отфильтрован: {{ summary.filtered_empty_text }}.
+        </p>
+        {% if summary.source_file %}
+        <p class="small">Источник прогноза: <code>{{ summary.source_file }}</code>.</p>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    {% if rows %}
+    <section class="card" style="margin-top: 18px;">
+        <h2 style="margin-top: 0;">Предпросмотр результатов</h2>
+        <div class="filters">
+            <button type="button" onclick="filterRows('all')">Все</button>
+            <button type="button" onclick="filterRows('1')">Только мошеннические</button>
+            <button type="button" onclick="filterRows('0')">Только не мошеннические</button>
+        </div>
+        <p class="small">Таблица отсортирована по <code>predicted_proba</code> по убыванию.</p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID товара</th>
+                        <th>ID записи</th>
+                        <th>Отзыв</th>
+                        <th>Вероятность</th>
+                        <th>Метка</th>
+                        <th>Версия модели</th>
+                        <th>Тип модели</th>
+                        <th>Источник</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr data-label="{{ row.predicted_label }}">
+                        <td>{{ row.nmId }}</td>
+                        <td>{{ row._reviewmark_id }}</td>
+                        <td class="review-cell" title="{{ row.text }}">{{ row.text }}</td>
+                        <td>{{ row.predicted_proba }}</td>
+                        <td>
+                            <span class="pill {% if row.predicted_label == 1 %}bad{% else %}ok{% endif %}">
+                                {% if row.predicted_label == 1 %}Мошеннический{% else %}Не мошеннический{% endif %}
+                            </span>
+                        </td>
+                        <td>{{ row.model_version }}</td>
+                        <td>{{ row.model_type }}</td>
+                        <td>{{ row.source_file }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endif %}
+</div>
+<script>
+function filterRows(target) {
+    const rows = document.querySelectorAll('tbody tr[data-label]');
+    rows.forEach((row) => {
+        row.style.display = target === 'all' || row.dataset.label === target ? '' : 'none';
+    });
+}
+</script>
+</body>
+</html>
