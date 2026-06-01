@@ -148,11 +148,13 @@
             <div class="metric"><span>Accuracy</span><strong>{{ metrics.accuracy }}</strong></div>
             <div class="metric"><span>Precision</span><strong>{{ metrics.precision }}</strong></div>
             <div class="metric"><span>Recall</span><strong>{{ metrics.recall }}</strong></div>
-            <div class="metric"><span>F1-score</span><strong>{{ metrics.f1 }}</strong></div>
+            <div class="metric"><span>Macro-F1</span><strong>{{ metrics.f1 }}</strong></div>
             <div class="metric"><span>ROC-AUC</span><strong>{{ metrics.roc_auc if metrics.roc_auc is not none else "—" }}</strong></div>
             <div class="metric"><span>Всего записей</span><strong>{{ metrics.total_records }}</strong></div>
             <div class="metric"><span>Train size</span><strong>{{ metrics.train_size }}</strong></div>
             <div class="metric"><span>Test size</span><strong>{{ metrics.test_size }}</strong></div>
+            <div class="metric"><span>F1 class 1</span><strong>{{ metrics.f1_positive if metrics.f1_positive is defined else "—" }}</strong></div>
+            <div class="metric"><span>Decision threshold</span><strong>{{ metrics.decision_threshold if metrics.decision_threshold is defined else "—" }}</strong></div>
             <div class="metric"><span>Средняя вероятность мошенничества</span><strong>{{ metrics.avg_probability_fake }}</strong></div>
             <div class="metric"><span>Сохранено в БД</span><strong>{{ metrics.stored_rows if metrics.stored_rows is defined else "—" }}</strong></div>
         </div>
@@ -177,7 +179,8 @@
                     <th>Accuracy</th>
                     <th>Precision</th>
                     <th>Recall</th>
-                    <th>F1</th>
+                    <th>Macro-F1</th>
+                    <th>F1 class 1</th>
                     <th>ROC-AUC</th>
                 </tr>
             </thead>
@@ -189,6 +192,7 @@
                     <td>{{ item.precision }}</td>
                     <td>{{ item.recall }}</td>
                     <td>{{ item.f1 }}</td>
+                    <td>{{ item.f1_positive if item.f1_positive is defined else "—" }}</td>
                     <td>{{ item.roc_auc if item.roc_auc is not none else "—" }}</td>
                 </tr>
                 {% endfor %}

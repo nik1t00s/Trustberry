@@ -23,7 +23,7 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardScaler
 
 from .dataio import load_records, normalize_records
 
@@ -33,7 +33,24 @@ MODEL_PATH = BASE_DIR / "models" / "review_model.joblib"
 METRICS_PATH = BASE_DIR / "models" / "metrics.json"
 
 TEXT_COLUMNS = ["review_text", "seller_answer", "color"]
-NUM_COLUMNS = ["rating", "review_length", "exclamation_count", "uppercase_ratio", "digit_count"]
+NUM_COLUMNS = [
+    "rating",
+    "review_length",
+    "exclamation_count",
+    "uppercase_ratio",
+    "digit_count",
+    "answer_length",
+    "answer_word_count",
+    "answer_digit_count",
+    "answer_exclamation_count",
+    "answer_has_long_number",
+    "answer_newline_count",
+    "review_question_count",
+    "review_comma_count",
+    "review_has_long_number",
+    "review_avg_word_len",
+    "review_unique_word_ratio",
+]
 ALL_COLUMNS = ["product_id", "rating", "color", "review_text", "seller_answer", "fake_label"]
 
 
@@ -150,7 +167,6 @@ def load_dataset(path: Path) -> pd.DataFrame:
     df = normalize_columns(df)
     df = ensure_labels(df)
     df = engineer_features(df)
-    df = df[df["review_text"].astype(str).str.strip() != ""].reset_index(drop=True)
     if df.empty:
         raise ValueError("После очистки не осталось непустых отзывов для обучения.")
     return df
@@ -339,8 +355,22 @@ FEATURE_COLUMNS = [
     "exclamation_count",
     "uppercase_ratio",
     "digit_count",
+    "answer_length",
+    "answer_word_count",
+    "answer_digit_count",
+    "answer_exclamation_count",
+    "answer_has_long_number",
+    "answer_newline_count",
+    "review_question_count",
+    "review_comma_count",
+    "review_has_long_number",
+    "review_avg_word_len",
+    "review_unique_word_ratio",
 ]
 MODEL_VERSION_PREFIX = "review_model"
+TEXT_TFIDF_MAX_FEATURES = 12000
+TEXT_CHAR_TFIDF_MAX_FEATURES = 8000
+ANSWER_TFIDF_MAX_FEATURES = 4000
 
 
 def build_model_version() -> str:
@@ -391,6 +421,20 @@ def _uppercase_ratio(text: Any) -> float:
     return sum(char.isupper() for char in letters) / len(letters)
 
 
+def _average_word_length(text: Any) -> float:
+    words = str(text or "").split()
+    if not words:
+        return 0.0
+    return sum(len(word) for word in words) / len(words)
+
+
+def _unique_word_ratio(text: Any) -> float:
+    words = str(text or "").split()
+    if not words:
+        return 0.0
+    return len(set(words)) / len(words)
+
+
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     work = normalize_columns(df)
     raw_text = work["review_text"].fillna("")
@@ -405,6 +449,23 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     work["exclamation_count"] = raw_text.apply(lambda value: str(value).count("!"))
     work["digit_count"] = raw_text.apply(lambda value: sum(char.isdigit() for char in str(value)))
     work["uppercase_ratio"] = raw_text.apply(_uppercase_ratio)
+    clean_review = work["review_text"]
+    clean_answer = work["seller_answer"]
+    work["answer_length"] = clean_answer.apply(lambda value: len(str(value)))
+    work["answer_word_count"] = clean_answer.apply(lambda value: len(str(value).split()))
+    work["answer_digit_count"] = clean_answer.apply(lambda value: sum(char.isdigit() for char in str(value)))
+    work["answer_exclamation_count"] = clean_answer.apply(lambda value: str(value).count("!"))
+    work["answer_has_long_number"] = clean_answer.apply(
+        lambda value: int(bool(re.search(r"\d{6,}", str(value))))
+    )
+    work["answer_newline_count"] = clean_answer.apply(lambda value: str(value).count("\n"))
+    work["review_question_count"] = clean_review.apply(lambda value: str(value).count("?"))
+    work["review_comma_count"] = clean_review.apply(lambda value: str(value).count(","))
+    work["review_has_long_number"] = clean_review.apply(
+        lambda value: int(bool(re.search(r"\d{6,}", str(value))))
+    )
+    work["review_avg_word_len"] = clean_review.apply(_average_word_length)
+    work["review_unique_word_ratio"] = clean_review.apply(_unique_word_ratio)
     return work
 
 
@@ -458,7 +519,15 @@ def build_pipeline() -> Pipeline:
     return Pipeline(
         [
             ("preprocessor", preprocessor),
-            ("classifier", LogisticRegression(max_iter=1000, class_weight="balanced")),
+            (
+                "classifier",
+                LogisticRegression(
+                    max_iter=2000,
+                    class_weight="balanced",
+                    C=0.5,
+                    solver="liblinear",
+                ),
+            ),
         ]
     )
 
@@ -467,7 +536,6 @@ def load_training_dataframe(records: list[dict[str, Any]]) -> pd.DataFrame:
     df = pd.DataFrame(records)
     df = engineer_features(df)
     df["fake_label"] = pd.to_numeric(df["fake_label"], errors="coerce").astype(int)
-    df = df[df["review_text"].astype(str).str.strip() != ""].reset_index(drop=True)
     if df.empty:
         raise ValueError("После очистки не осталось непустых отзывов для обучения.")
     return df
@@ -564,8 +632,8 @@ def predict_one(model: Pipeline, payload: Dict[str, Any]) -> Dict[str, Any]:
         ]
     )
     df = engineer_features(df)
-    prediction = int(model.predict(df[FEATURE_COLUMNS])[0])
     probability = float(model.predict_proba(df[FEATURE_COLUMNS])[0, 1])
+    prediction = int(threshold_predict([probability], get_decision_threshold(model))[0])
     return {
         "prediction": prediction,
         "label": "Мошеннический" if prediction == 1 else "Не мошеннический",
@@ -576,8 +644,8 @@ def predict_one(model: Pipeline, payload: Dict[str, Any]) -> Dict[str, Any]:
 
 def predict_dataset(model: Pipeline, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     df = load_prediction_dataframe(rows)
-    predictions = model.predict(df[FEATURE_COLUMNS])
     probabilities = model.predict_proba(df[FEATURE_COLUMNS])[:, 1]
+    predictions = threshold_predict(probabilities, get_decision_threshold(model))
 
     return [
         {
@@ -674,17 +742,34 @@ def build_preprocessor() -> ColumnTransformer:
                 Pipeline(
                     [
                         ("select", TextSelector("review_text")),
-                        ("tfidf", TfidfVectorizer(max_features=3000, ngram_range=(1, 2))),
+                        (
+                            "tfidf",
+                            TfidfVectorizer(
+                                max_features=TEXT_TFIDF_MAX_FEATURES,
+                                ngram_range=(1, 2),
+                                min_df=2,
+                                sublinear_tf=True,
+                            ),
+                        ),
                     ]
                 ),
                 FEATURE_COLUMNS,
             ),
             (
-                "seller_answer_tfidf",
+                "review_text_char_tfidf",
                 Pipeline(
                     [
-                        ("select", TextSelector("seller_answer")),
-                        ("tfidf", TfidfVectorizer(max_features=1000, ngram_range=(1, 2))),
+                        ("select", TextSelector("review_text")),
+                        (
+                            "tfidf",
+                            TfidfVectorizer(
+                                max_features=TEXT_CHAR_TFIDF_MAX_FEATURES,
+                                analyzer="char_wb",
+                                ngram_range=(3, 5),
+                                min_df=2,
+                                sublinear_tf=True,
+                            ),
+                        ),
                     ]
                 ),
                 FEATURE_COLUMNS,
@@ -756,7 +841,14 @@ def create_logistic_pipeline() -> Pipeline:
     return Pipeline(
         [
             ("preprocessor", build_preprocessor()),
-            ("classifier", LogisticRegression(max_iter=1000, class_weight="balanced")),
+            (
+                "classifier",
+                LogisticRegression(
+                    max_iter=2500,
+                    C=1.0,
+                    solver="liblinear",
+                ),
+            ),
         ]
     )
 
@@ -773,13 +865,14 @@ def create_xgboost_pipeline(scale_pos_weight: float) -> Pipeline:
                     objective="binary:logistic",
                     eval_metric="logloss",
                     random_state=42,
-                    n_estimators=250,
-                    max_depth=6,
-                    learning_rate=0.08,
+                    n_estimators=500,
+                    max_depth=5,
+                    learning_rate=0.05,
                     subsample=0.9,
-                    colsample_bytree=0.9,
-                    min_child_weight=1,
+                    colsample_bytree=0.8,
+                    min_child_weight=3,
                     scale_pos_weight=scale_pos_weight,
+                    reg_lambda=2.0,
                     n_jobs=1,
                 ),
             ),
@@ -833,6 +926,47 @@ def maybe_tune_xgboost(pipeline: Pipeline, X_train: pd.DataFrame, y_train: pd.Se
     return search.best_estimator_
 
 
+def build_validation_split(
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+) -> tuple[pd.DataFrame, pd.DataFrame | None, pd.Series, pd.Series | None]:
+    class_counts = y_train.value_counts()
+    if len(y_train) < 50 or class_counts.min() < 5:
+        return X_train, None, y_train, None
+    X_fit, X_val, y_fit, y_val = train_test_split(
+        X_train,
+        y_train,
+        test_size=0.2,
+        random_state=42,
+        stratify=y_train,
+    )
+    return X_fit, X_val, y_fit, y_val
+
+
+def select_decision_threshold(probabilities: Any, y_true: pd.Series | None) -> float:
+    if y_true is None or len(y_true) == 0:
+        return 0.5
+
+    best_score = -1.0
+    best_threshold = 0.5
+    for step in range(5, 96):
+        threshold = step / 100
+        predictions = (probabilities >= threshold).astype(int)
+        score = float(f1_score(y_true, predictions, average="macro", zero_division=0))
+        if score > best_score:
+            best_score = score
+            best_threshold = threshold
+    return round(best_threshold, 2)
+
+
+def threshold_predict(probabilities: Any, threshold: float) -> Any:
+    return (probabilities >= threshold).astype(int)
+
+
+def get_decision_threshold(model: Pipeline) -> float:
+    return float(getattr(model, "decision_threshold_", 0.5))
+
+
 def evaluate_pipeline(
     pipeline: Pipeline,
     X_train: pd.DataFrame,
@@ -845,13 +979,23 @@ def evaluate_pipeline(
     source_file: str,
     tuned: bool,
 ) -> tuple[Pipeline, dict[str, Any]]:
+    X_fit, X_val, y_fit, y_val = build_validation_split(X_train, y_train)
+    pipeline.fit(X_fit, y_fit)
+    validation_probabilities = None if X_val is None else pipeline.predict_proba(X_val)[:, 1]
+    decision_threshold = select_decision_threshold(validation_probabilities, y_val)
+
     pipeline.fit(X_train, y_train)
-    predictions = pipeline.predict(X_test)
+    setattr(pipeline, "decision_threshold_", decision_threshold)
+
     probabilities = pipeline.predict_proba(X_test)[:, 1]
+    predictions = threshold_predict(probabilities, decision_threshold)
     try:
         roc_auc = round(float(roc_auc_score(y_test, probabilities)), 4)
     except ValueError:
         roc_auc = None
+
+    f1_positive = round(float(f1_score(y_test, predictions, zero_division=0)), 4)
+    f1_macro = round(float(f1_score(y_test, predictions, average="macro", zero_division=0)), 4)
 
     return pipeline, {
         "model_type": model_type,
@@ -863,8 +1007,11 @@ def evaluate_pipeline(
         "accuracy": round(float(accuracy_score(y_test, predictions)), 4),
         "precision": round(float(precision_score(y_test, predictions, zero_division=0)), 4),
         "recall": round(float(recall_score(y_test, predictions, zero_division=0)), 4),
-        "f1": round(float(f1_score(y_test, predictions, zero_division=0)), 4),
+        "f1": f1_macro,
+        "f1_macro": f1_macro,
+        "f1_positive": f1_positive,
         "roc_auc": roc_auc,
+        "decision_threshold": decision_threshold,
         "confusion_matrix": confusion_matrix(y_test, predictions, labels=[0, 1]).tolist(),
         "classification_report": classification_report(y_test, predictions, zero_division=0, output_dict=True),
         "avg_probability_fake": round(float(probabilities.mean()), 4),
@@ -920,7 +1067,7 @@ def build_candidate_model_list() -> list[str]:
 def select_best_model(results: list[tuple[str, Pipeline, dict[str, Any]]]) -> tuple[str, Pipeline, dict[str, Any]]:
     return max(
         results,
-        key=lambda item: (float(item[2]["f1"]), float(item[2]["roc_auc"] or 0.0)),
+        key=lambda item: (float(item[2]["f1_macro"]), float(item[2]["roc_auc"] or 0.0)),
     )
 
 
@@ -961,13 +1108,14 @@ def train_and_compare_models(
                     "precision": metrics["precision"],
                     "recall": metrics["recall"],
                     "f1": metrics["f1"],
+                    "f1_positive": metrics["f1_positive"],
                     "roc_auc": metrics["roc_auc"],
                 }
                 for model_type, _, metrics in results
             ],
             "winner_model_type": winner_model_type,
             "winner_model_label": winner_metrics["model_label"],
-            "criterion_used": "f1_then_roc_auc",
+            "criterion_used": "macro_f1_then_roc_auc",
             "unavailable_models": unavailable_models,
         },
         "active_model": {
@@ -1029,8 +1177,8 @@ def predict_one(model: Pipeline, payload: Dict[str, Any]) -> Dict[str, Any]:
         ]
     )
     df = engineer_features(df)
-    prediction = int(model.predict(df[FEATURE_COLUMNS])[0])
     probability = float(model.predict_proba(df[FEATURE_COLUMNS])[0, 1])
+    prediction = int(threshold_predict([probability], get_decision_threshold(model))[0])
     return {
         "prediction": prediction,
         "label": "Мошеннический" if prediction == 1 else "Не мошеннический",

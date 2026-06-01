@@ -76,12 +76,12 @@ def train_from_path(
 
     warnings: list[str] = []
     if metrics["f1"] < 0.5:
-        warnings.append("Качество модели пока остается умеренным: F1-score ниже 0.50.")
+        warnings.append("Качество модели пока остается умеренным: Macro-F1 ниже 0.67.")
     positive_rate = metrics["positive_rate"]
     if positive_rate < 0.15 or positive_rate > 0.85:
         warnings.append("Датасет заметно несбалансирован по классам.")
     if mode == "compare":
-        warnings.append("Активной сохранена модель с лучшим F1-score; при близких значениях использован ROC-AUC.")
+        warnings.append("Активной сохранена модель с лучшим Macro-F1; при близких значениях использован ROC-AUC.")
     if model_type == "xgboost" and not get_available_model_options()["xgboost"]["available"]:
         warnings.append("XGBoost недоступен в текущем окружении: библиотека не установлена.")
 
@@ -155,4 +155,69 @@ def predict_from_path(dataset_path: Path) -> dict[str, Any]:
         "validation": validation,
         "exports": {"jsonl": str(jsonl_path), "csv": str(csv_path)},
         "processed_at": processed_at,
+    }
+
+
+def train_from_path(
+    dataset_path: Path,
+    *,
+    mode: str = "single",
+    model_type: str = "logistic_regression",
+    training_speed: str = "fast",
+) -> dict[str, Any]:
+    raw_records = load_records(dataset_path)
+    validated_records, validation = validate_training_records(
+        raw_records,
+        source_file=dataset_path.name,
+        deduplicate=True,
+    )
+    df = load_training_dataframe(validated_records)
+    pipeline, metrics_payload = train_model(
+        df,
+        source_file=dataset_path.name,
+        mode=mode,
+        model_type=model_type,
+        training_speed=training_speed,
+    )
+    save_trained_model(pipeline, metrics_payload)
+    metrics = metrics_payload["summary"]
+
+    stored_rows = insert_reviews(
+        [
+            {
+                "product_id": row.get("product_id"),
+                "rating": row.get("rating"),
+                "color": row.get("color"),
+                "review_text": row.get("review_text"),
+                "seller_answer": row.get("seller_answer"),
+                "fake_label": row.get("fake_label"),
+                "probability_fake": None,
+                "predicted_label": None,
+            }
+            for row in df.to_dict(orient="records")
+        ]
+    )
+
+    warnings: list[str] = []
+    if metrics["f1"] < 0.67:
+        warnings.append("Качество модели пока остается умеренным: Macro-F1 ниже 0.67.")
+    positive_rate = metrics["positive_rate"]
+    if positive_rate < 0.15 or positive_rate > 0.85:
+        warnings.append("Датасет заметно несбалансирован по классам.")
+    if mode == "compare":
+        warnings.append("Активной сохранена модель с лучшим Macro-F1; при близких значениях использован ROC-AUC.")
+    if model_type == "xgboost" and not get_available_model_options()["xgboost"]["available"]:
+        warnings.append("XGBoost недоступен в текущем окружении: библиотека не установлена.")
+
+    return {
+        "metrics_payload": metrics_payload,
+        "metrics": {**metrics, "stored_rows": stored_rows},
+        "validation": validation,
+        "dataset_summary": {
+            "records_after_validation": len(validated_records),
+            "class_balance": metrics["class_balance"],
+            "positive_rate": metrics["positive_rate"],
+            "source_file": dataset_path.name,
+        },
+        "warnings": warnings,
     }
