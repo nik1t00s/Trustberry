@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Tuple
 
 import joblib
+import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -960,7 +961,8 @@ def select_decision_threshold(probabilities: Any, y_true: pd.Series | None) -> f
 
 
 def threshold_predict(probabilities: Any, threshold: float) -> Any:
-    return (probabilities >= threshold).astype(int)
+    probabilities_array = np.asarray(probabilities, dtype=float)
+    return (probabilities_array >= threshold).astype(int)
 
 
 def get_decision_threshold(model: Pipeline) -> float:

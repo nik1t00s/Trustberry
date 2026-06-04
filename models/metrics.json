@@ -2,8 +2,8 @@
   "summary": {
     "model_type": "logistic_regression",
     "model_label": "Logistic Regression",
-    "model_version": "review_model_logreg_20260417_192304",
-    "trained_at": "2026-04-17T19:23:04",
+    "model_version": "review_model_logreg_20260604_170649",
+    "trained_at": "2026-06-04T17:06:49",
     "source_file": "labeled_records.jsonl",
     "tuned": false,
     "accuracy": 0.8845,
@@ -65,8 +65,8 @@
     "logistic_regression": {
       "model_type": "logistic_regression",
       "model_label": "Logistic Regression",
-      "model_version": "review_model_logreg_20260417_192304",
-      "trained_at": "2026-04-17T19:23:04",
+      "model_version": "review_model_logreg_20260604_170649",
+      "trained_at": "2026-06-04T17:06:49",
       "source_file": "labeled_records.jsonl",
       "tuned": false,
       "accuracy": 0.8845,
@@ -127,8 +127,8 @@
     "xgboost": {
       "model_type": "xgboost",
       "model_label": "XGBoost",
-      "model_version": "review_model_xgboost_20260417_192512",
-      "trained_at": "2026-04-17T19:25:12",
+      "model_version": "review_model_xgboost_20260604_170857",
+      "trained_at": "2026-06-04T17:08:57",
       "source_file": "labeled_records.jsonl",
       "tuned": false,
       "accuracy": 0.8877,
@@ -189,8 +189,8 @@
     "catboost": {
       "model_type": "catboost",
       "model_label": "CatBoost",
-      "model_version": "review_model_catboost_20260417_192643",
-      "trained_at": "2026-04-17T19:26:43",
+      "model_version": "review_model_catboost_20260604_171021",
+      "trained_at": "2026-06-04T17:10:21",
       "source_file": "labeled_records.jsonl",
       "tuned": false,
       "accuracy": 0.8554,
@@ -289,8 +289,8 @@
   },
   "active_model": {
     "model_type": "logistic_regression",
-    "model_version": "review_model_logreg_20260417_192304",
-    "trained_at": "2026-04-17T19:23:04",
+    "model_version": "review_model_logreg_20260604_170649",
+    "trained_at": "2026-06-04T17:06:49",
     "source_file": "labeled_records.jsonl"
   }
 }

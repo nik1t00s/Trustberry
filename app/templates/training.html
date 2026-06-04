@@ -148,7 +148,7 @@
             <div class="metric"><span>Accuracy</span><strong>{{ metrics.accuracy }}</strong></div>
             <div class="metric"><span>Precision</span><strong>{{ metrics.precision }}</strong></div>
             <div class="metric"><span>Recall</span><strong>{{ metrics.recall }}</strong></div>
-            <div class="metric"><span>Macro-F1</span><strong>{{ metrics.f1 }}</strong></div>
+            <div class="metric"><span>F1</span><strong>{{ metrics.f1 }}</strong></div>
             <div class="metric"><span>ROC-AUC</span><strong>{{ metrics.roc_auc if metrics.roc_auc is not none else "—" }}</strong></div>
             <div class="metric"><span>Всего записей</span><strong>{{ metrics.total_records }}</strong></div>
             <div class="metric"><span>Train size</span><strong>{{ metrics.train_size }}</strong></div>
@@ -179,7 +179,7 @@
                     <th>Accuracy</th>
                     <th>Precision</th>
                     <th>Recall</th>
-                    <th>Macro-F1</th>
+                    <th>F1</th>
                     <th>F1 class 1</th>
                     <th>ROC-AUC</th>
                 </tr>
