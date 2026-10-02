@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from .uploads import allocate_upload_path
 from .db import count_reviews, fetch_recent, init_db, insert_reviews
 from .dataio import load_records
 from .labeling import apply_decision, create_session, get_next_record, get_progress, list_sessions, load_session, load_source_records
@@ -26,7 +27,9 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 SUPPORTED_EXTENSIONS = {".json", ".jsonl", ".jl", ".txt"}
 
 app = FastAPI(title="Система обнаружения мошеннических отзывов", version="1.1.0")
-app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="static")
+STATIC_DIR = BASE_DIR / "app" / "static"
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "app" / "templates"))
 
 
@@ -190,7 +193,7 @@ def start_labeling_session(request: Request, dataset: UploadFile = File(...)) ->
             message_type="error",
         )
 
-    dst = UPLOADS_DIR / dataset.filename
+    dst = allocate_upload_path(UPLOADS_DIR, dataset.filename)
     with dst.open("wb") as buffer:
         shutil.copyfileobj(dataset.file, buffer)
 
@@ -263,7 +266,7 @@ def training_upload(
             message_type="error",
         )
 
-    dst = UPLOADS_DIR / dataset.filename
+    dst = allocate_upload_path(UPLOADS_DIR, dataset.filename)
     with dst.open("wb") as buffer:
         shutil.copyfileobj(dataset.file, buffer)
 
@@ -311,7 +314,7 @@ def prediction_upload(request: Request, dataset: UploadFile = File(...)) -> HTML
             message_type="error",
         )
 
-    dst = UPLOADS_DIR / dataset.filename
+    dst = allocate_upload_path(UPLOADS_DIR, dataset.filename)
     with dst.open("wb") as buffer:
         shutil.copyfileobj(dataset.file, buffer)
 
@@ -455,7 +458,7 @@ def upload_and_train(request: Request, dataset: UploadFile = File(...)) -> HTMLR
             message_type="error",
         )
 
-    dst = UPLOADS_DIR / dataset.filename
+    dst = allocate_upload_path(UPLOADS_DIR, dataset.filename)
     with dst.open("wb") as buffer:
         shutil.copyfileobj(dataset.file, buffer)
 
